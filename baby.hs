@@ -49,6 +49,9 @@ applyTwice f x = f (f x)
 -- null function can be used to quickly check if a list is null
 -- let notNull x = not (null x) in filter notNull [[1,2,3],[],[3,4,5],[2,2],[],[],[]]
 
+filterEmptyLists :: [[a]] -> [[a]]
+filterEmptyLists = filter $ not . null
+
 -- find the sum of all odd squares that are smaller than 10,000
 
 -- sum (takeWhile (<10000) (filter odd (map (^2) [1..])))  
@@ -62,6 +65,15 @@ chain x = x : if odd x
 -- lambdas
 numLongChains :: Int
 numLongChains = length (filter (\xs -> length xs > 15) (map chain [1..100]))
+
+-- foldl / foldr
+-- As is tradition, foldl and foldr's provided functions have their
+-- arguments reversed.
+myProduct :: Num a => [a] -> a
+myProduct = foldl (\acc x -> acc * x) 1
+
+myProduct' :: Num a => [a] -> a
+myProduct' = foldr (\x acc -> x * acc) 1
 
 -- scanl/scanr can be used when you need intermediate values from a foldr/foldl
 
