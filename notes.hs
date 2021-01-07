@@ -376,4 +376,39 @@ data Frank a b = Frank {frankField :: b a} deriving (Show)
 instance Tofu Frank where
     tofu = Frank
 
--- This is a bit brain melty
+-- This is a bit brain melty, but we shall move on to Input & Output!!
+
+-- ====================== INPUT AND OUTPUT ====================================
+
+-- putStrLn takes a string and returns an I/O action that has a result of type
+-- ()
+--
+-- main = do
+--      ...
+--
+-- is how you can make a runnable program. main always has a type signature of
+-- `main :: IO _something_`
+--
+-- name <- getLine
+--
+-- :t getLine is `getLine :: IO String`, e.g. an I/O action that returns a
+-- string.
+--
+-- The <- construct is used to retrieve data from an I/O action.
+--
+-- In a `do` block, the last action cannot be bound to a name!
+--
+-- `return` in haskell actually creates an I/O action out of a pure value
+-- 
+-- The `when` function is found in Control.Monad.
+-- It takes a boolean value and an I/O action
+--
+-- sequence
+-- What the heck?
+--
+-- Tomorrow, go over I/O actions again! Especially:
+-- - sequence
+-- - mapM
+-- - forM
+-- - when
+-- - forever
