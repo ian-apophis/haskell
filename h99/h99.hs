@@ -1,3 +1,7 @@
+import System.Random
+import Data.List(delete)
+import Control.Monad(replicateM)
+import Data.Foldable(foldlM)
 
 -- Problem 1, last element of a list
 myLast = last
@@ -134,13 +138,18 @@ range x y
   | x <= y = [x..y]
   | otherwise = [x, x-1..y]
 
--- From here on random numbers seem to be pretty important
+-- Problem 23, Extract a given number of randomly selected elements from a list
+rnd_sel_helper :: [a] -> [Int] -> [a]
+rnd_sel_helper [] _ = []
+rnd_sel_helper _ [] = []
+rnd_sel_helper l (pos:rest) = rmvd : (rnd_sel_helper new_l rest)
+    where (rmvd, new_l) = removeAt pos l
 
-import System.Random
-
--- This one seems straightforward, but using random seems to have strange
--- side-effects in Haskell. This probably has something to do with the fact
--- that generating a value causes the internal RNG state to cycle.
-rnd_select :: [a] -> Int -> [a]
-rnd_select [] _ = []
-rnd_select xs n = take n xs
+rnd_select' :: [a] -> Int -> IO [a] -- needs to be IO because we're using random
+rnd_select' [] _ = return []
+rnd_select' xs n
+  | n < 0 = error "N must be gte 0"
+  | otherwise = do
+      let len = length xs
+      vals <- mapM getStdRandom $ take n [ randomR (1, x) | x <- [len, len-1..1] ]
+      return $ rnd_sel_helper xs vals

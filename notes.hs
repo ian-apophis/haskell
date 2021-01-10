@@ -1,5 +1,7 @@
 
 import qualified Data.Map as Map
+import Control.Monad
+import System.Random
 
 doubleMe x = x + x
 
@@ -24,6 +26,11 @@ bmiTell weight height
 calcBmis :: (RealFloat a) => [(a, a)] -> [a]
 calcBmis xs = [bmi w h | (w, h) <- xs ]
     where bmi weight height = weight / height ^ 2
+
+-- This list comprehension uses a let binding with no "in" and uses the defined
+-- variable both before _and_ after the let binding.
+calcBMIs :: (RealFloat a) => [(a, a)] -> [a]
+calcBMIs xs = [bmi | (w, h) <- xs, let bmi = w / h ^ 2, bmi >= 25]
 
 -- Let bindings
 cylinder :: (RealFloat a) => a -> a -> a
@@ -396,19 +403,78 @@ instance Tofu Frank where
 --
 -- The <- construct is used to retrieve data from an I/O action.
 --
--- In a `do` block, the last action cannot be bound to a name!
+-- Similar to list comprehensions, a let binding doesn't need an "in"
 --
--- `return` in haskell actually creates an I/O action out of a pure value
+-- In a `do` block, the last action cannot be bound to a name!
+-- The following program is not valid:
+--
+-- main = do
+--     illegal <- putStrLn "Wow!"
+--
+-- `return` in haskell actually creates an I/O action out of a pure value. It's
+-- sort-of like the opposite of `<-`.
+example = do
+    a <- return "Hell"
+    b <- return "Yeah!"
+    putStrLn $ a ++ " " ++ b
+--
+-- They're mostly used to create an I/O action that doesn't do anything
+--
+example2 = do
+    c <- getChar
+    if c /= ' '
+       then do
+           putChar c
+           example2
+        else return ()
 -- 
 -- The `when` function is found in Control.Monad.
--- It takes a boolean value and an I/O action
+-- It takes a boolean value and an I/O action and is sort-of syntactic sugar
+-- for the `if COND then ACTION else return ()` construct.
 --
--- sequence
--- What the heck?
+example3 = do
+    c <- getChar
+    when (c /= ' ') $ do
+        putChar c
+        example3
+
+-- sequence takes a list of I/O actions and returns an I/O action that will
+-- perform those actions one after another. The result contained in that I/O
+-- action will be a list of the results of all the I/O actions that were
+-- performed.
+-- sequence :: [IO a] -> IO [a]
+example4 = do
+    a <- getLine
+    b <- getLine
+    c <- getLine
+    print [a,b,c]
+
+-- is the same as
+example5 = do
+    rs <- sequence [getLine, getLine, getLine]
+    print rs
+
+-- A common pattern is when we map functions like `print` or `putStrLn` over lists.
+-- sequence (map print [1,2,3,4,5])
+
+-- File IO is fun. See todo.hs
+
+-- ========================== RANDOMNESS =======================================
+
+-- Requires a whole separate package
+
+-- random (mkStdGen 100) :: (Int, StdGen)
 --
--- Tomorrow, go over I/O actions again! Especially:
--- - sequence
--- - mapM
--- - forM
--- - when
--- - forever
+-- take 5 $ randoms (mkStdGen 11) :: [Int]
+--
+-- randomR (1, 6) (mkStdGen 359353)
+--
+-- take 10 $ randomRs ('a', 'z') (mkStdGen 3) :: [Char]
+--
+-- This has the issue of needing to provide a random seed, which isn't good.
+-- System.Random offers the getStdGen I/O action. This asks the system for a
+-- good random number generator and stores that in a global generator.
+
+example6 = do
+    gen <- getStdGen
+    putStr $ take 20 (randomRs ('a', 'z') gen)
