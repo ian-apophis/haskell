@@ -1,6 +1,9 @@
 
 import qualified Data.Map as Map
+import Data.List.Split
 import Control.Monad
+import Data.Monoid
+import Control.Applicative
 import System.Random
 
 doubleMe x = x + x
@@ -269,7 +272,7 @@ treeElem x (Node a left right)
     | x < a  = treeElem x left
     | x > a  = treeElem x right
 
--- Making typeclass instances
+-- Making typeclass instances. Typeclasses are like interfaces
 data TrafficLight = Red | Yellow | Green
 
 -- Because Eq is defined in a mutually recursive way, only one of == & /= needs
@@ -279,6 +282,9 @@ instance Eq TrafficLight where
     Green == Green = True
     Yellow == Yellow = True
     _ == _ = False
+
+-- class is for defining new typeclasses
+-- instance is for making our types instances of typeclasses.
 
 instance Show TrafficLight where
     show Red = "Red light"
@@ -290,12 +296,15 @@ instance Show TrafficLight where
 --
 -- instance Eq Maybe where
 --  ...
--- But you can do something like
+-- But you can do something like:
 --
 -- instance (Eq m) => Eq (Maybe m) where
 --     Just x == Just y = x == y
 --     Nothing == Nothing = True
 --     _ == _ = False
+--
+-- That is, we must add a class constraint. We are using `==` so we must
+-- guarantee that a class is a member of the Eq typeclass
 --
 -- This instance declaration says that:
 -- We want all types of the form `Maybe m` to be part of the `Eq` typeclass,
@@ -312,6 +321,13 @@ instance YesNo Int where
 instance YesNo [a] where
     yesno [] = False
     yesno _ = True
+
+instance YesNo Bool where
+    yesno = id
+
+instance YesNo (Maybe a) where
+    yesno (Just _) = True
+    yesno Nothing = False
 
 -- The Functor Typeclass
 -- Basically for things that can be mapped over.
@@ -335,6 +351,7 @@ It's similar to the signature for map:
 map :: (a -> b) -> [a] -> [b]
 
 Indeed, map is fmap that works only on lists!!
+
 -}
 
 -- Lets try to write an instance of Functor for Tree.
@@ -461,7 +478,7 @@ example5 = do
 
 -- ========================== RANDOMNESS =======================================
 
--- Requires a whole separate package
+-- Requires a whole separate package on ubuntu 20.04
 
 -- random (mkStdGen 100) :: (Int, StdGen)
 --
@@ -476,5 +493,181 @@ example5 = do
 -- good random number generator and stores that in a global generator.
 
 example6 = do
-    gen <- getStdGen
-    putStr $ take 20 (randomRs ('a', 'z') gen)
+    replicateM_ 5 $ do
+        gen <- newStdGen
+        putStrLn $ take 20 (randomRs ('a', 'z') gen)
+
+-- newStdGen splits the current random generator into two generators.
+
+-- Bytestrings are a thing and are useful for processing files.
+
+-- Exceptions!
+-- import Control.Exception(catch)
+-- catch :: IO a -> (IOError -> IO a) -> IO a
+
+solveRPN :: (Num a, Read a) => String -> a
+solveRPN expression = head (foldl foldingFunction [] (words expression))
+    where foldingFunction (x:y:ys) "*" = (x*y):ys
+          foldingFunction (x:y:ys) "+" = (x+y):ys
+          foldingFunction (x:y:ys) "-" = (y-x):ys
+          foldingFunction xs numberString = read numberString:xs
+
+data Section = Section { getA :: Int, getB :: Int, getC :: Int } deriving (Show)
+type RoadSystem = [Section]
+
+uncurry3 f [a,b,c] = f a b c
+heathrowToLondon :: RoadSystem
+heathrowToLondon = map (uncurry3 Section) $ chunksOf 3 $ map read . words $ "50 10 30 5 90 20 40 2 25 10 8 0"
+
+data Label = A | B | C deriving (Show)
+type Path = [(Label, Int)]
+
+roadStep :: (Path, Path) -> Section -> (Path, Path)
+roadStep (pathA, pathB) (Section a b c) =
+    let priceA = sum $ map snd pathA
+        priceB = sum $ map snd pathB
+        forwardPriceToA = priceA + a
+        crossPriceToA = priceB + b + c
+        forwardPriceToB = priceB + b
+        crossPriceToB = priceA + a + c
+        newPathToA = if forwardPriceToA <= crossPriceToA
+                        then (A,a):pathA
+                        else (C,c):(B,b):pathB
+        newPathToB = if forwardPriceToB <= crossPriceToB
+                        then (B,b):pathB
+                        else (C,c):(A,a):pathA
+    in (newPathToA, newPathToB)
+
+optimalPath :: RoadSystem -> Path
+optimalPath rs = 
+    let (pa,pb) = foldl roadStep ([],[]) rs
+        ca = sum $map snd pa
+        cb = sum $map snd pb
+    in reverse $ if ca <= cb then pa else pb
+
+-- Functors, Applicative Functors and Monoids
+--
+-- (->) r is a functor too!
+-- r -> a can be rewritten as (->) r a
+-- -> is a type constructor that takes two types
+-- How are functions functors?
+-- instance Functor ((->) r) where
+--     fmap = (.)
+-- It's function composition this whole time!!
+--
+-- fmap can be thought of a function that takes a function
+-- and returns a function that takes a functor and returns a functor.
+--
+-- It takes an `a->b` function and returns a function `f a -> f b`
+--
+-- This is called _lifting_ a function
+--
+-- We can also look at functors as things that output values in a context.
+-- e.g.
+-- Just 3 outputs 3 in the maybe context
+-- [1,2,3] outputs three values, in the context that there may be multiple or
+-- no values.
+-- 
+-- Mapping over functors is like attaching a transformation to the output of
+-- the functor that changes the value.
+--
+--
+
+-- Applicative Functors
+--
+-- fmap (*) (Just 3)
+-- Num a => Maybe (a->a)
+--
+-- You can map functions that are partially applied over functors, which makes
+-- sense.
+--
+-- Instead of mapping functions of "lists" of "values" you can map values over
+-- "lists" of "functions"
+--
+-- Using standard fmap you cannot however map a function that's inside a
+-- functor over another functor.
+--
+-- Applicative Typeclass in Control.Applicative
+-- It defines two methods:
+    {-
+       class (Functor f) => Applicative f where
+           pure :: a-> fa
+           (<*>) :: f(a->b) -> f a -> f b
+    -}
+
+-- pure should take a value of any type and return an applicative functor with
+-- that value inside of it.
+--
+-- <*> is sort of like a beefed up fmap. Whereas fmap takes a function and a
+-- functor and applies the function inside the functor, <*> takes a functor
+-- that has a function in it and another functor and sort-of extracts the
+-- function from the first functor and then maps it over the second one.
+--
+-- let a = Just (*3)
+-- a <*> (Just 4)
+--
+-- let a = replicate 3 (*3)
+-- a <*> [1,2,3,4]
+-- [3,6,9,12,3,6,9,12,3,6,9,12]
+--
+-- list implements <*> with a cross-product like thing
+--
+-- Using haskell's strong typing you can use pure to coerce functions into the
+-- correct functor to be <*>'d over something.
+--
+-- pure (*3) <*> [1,2,3,4]
+-- [3,6,9,12]
+-- pure (+) <*> Just 3 <*> Just 5
+-- 8
+--
+-- Or better to say, you can use pure to take a function that expects functions
+-- that aren't wrapped in functors and use that to operate on values in functor
+-- contexts
+--
+-- Control.Applicative also exports a function <$>, which is infix map
+-- The following 3 definitions are identical!
+
+fancyfunc1 = zipWith ($) (repeat (*3))
+fancyfunc2 :: [Int] -> [Int]
+fancyfunc2 l = pure (*3) <*> l
+fancyfunc3 l = (*3) <$> l
+
+example8 = do
+    let a = take 10 $ fancyfunc1 [1..]
+    print a
+    let a = take 10 $ fancyfunc2 [1..]
+    print a
+    let a = take 10 $ fancyfunc3 [1..]
+    print a
+
+-- ZipLists are a typeclass that is an instance of applicative. (This implies
+-- it's also a functor). When used with the <*> operator, they behave like
+-- zipWith ($)
+--
+-- ZipLists allow you to zip many more lists together without requiring
+-- special functions. They also allow you to make your functions on
+-- the spot rather than having to prepare them separately.
+-- getZipList $ (+) <$> ZipList [1,2,3] <*> ZipList [100,100,100]
+--
+-- liftA2 has the type:
+-- (a->b->c)->(f a -> f b -> f c)
+--
+-- It takes a normal binary function and promotes it to a function that
+-- operates on two functors
+--
+-- MONOIDS
+--
+-- an associative binary function and a value which acts as an identity w.r.t.
+-- that function.
+--
+-- Monoids are useful because they allow you to define how to do things like
+-- folding/collecting on a type.
+--
+-- The standard fold* family of functions only operate on lists, but the
+-- versions in the Foldable module can be used on any type that is foldable.
+--
+
+-- getAny $ F.foldMap (\x -> Any $ x == 3) testTree
+--
+-- (\x -> Any $ x == 3) takes values and produces the monoid (Any) which can
+-- then be `mappend`-ed to all the other elements in the tree.
