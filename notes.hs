@@ -444,7 +444,7 @@ example2 = do
            putChar c
            example2
         else return ()
--- 
+--
 -- The `when` function is found in Control.Monad.
 -- It takes a boolean value and an I/O action and is sort-of syntactic sugar
 -- for the `if COND then ACTION else return ()` construct.
@@ -539,7 +539,7 @@ roadStep (pathA, pathB) (Section a b c) =
     in (newPathToA, newPathToB)
 
 optimalPath :: RoadSystem -> Path
-optimalPath rs = 
+optimalPath rs =
     let (pa,pb) = foldl roadStep ([],[]) rs
         ca = sum $map snd pa
         cb = sum $map snd pb
@@ -548,12 +548,21 @@ optimalPath rs =
 -- Functors, Applicative Functors and Monoids
 --
 -- (->) r is a functor too!
--- r -> a can be rewritten as (->) r a
+-- `r -> a` can be rewritten as `(->) r a` much like `2 + 3` can be re-written as
+-- `(+ 2 3)`
+--
 -- -> is a type constructor that takes two types
+--
+-- Does that mean the kind of of (->) is `* -> * -> *`? IT IS!!
+-- :k (->) => `* -> * -> *`
+--
+-- fmap just for ((->) r) would look like:
+-- fmap :: (a -> b) -> (r -> a) -> (r -> b)
+--
 -- How are functions functors?
 -- instance Functor ((->) r) where
 --     fmap = (.)
--- It's function composition this whole time!!
+-- It was function composition this whole time!!
 --
 -- fmap can be thought of a function that takes a function
 -- and returns a function that takes a functor and returns a functor.
@@ -567,13 +576,13 @@ optimalPath rs =
 -- Just 3 outputs 3 in the maybe context
 -- [1,2,3] outputs three values, in the context that there may be multiple or
 -- no values.
--- 
+--
 -- Mapping over functors is like attaching a transformation to the output of
 -- the functor that changes the value.
 --
 --
 
--- Applicative Functors
+-- ====================== APPLICATIVE FUNCTORS ================================
 --
 -- fmap (*) (Just 3)
 -- Num a => Maybe (a->a)
@@ -622,13 +631,12 @@ optimalPath rs =
 --
 -- Or better to say, you can use pure to take a function that expects functions
 -- that aren't wrapped in functors and use that to operate on values in functor
--- contexts
+-- contexts. This is sort-of a reverse monad!
 --
 -- Control.Applicative also exports a function <$>, which is infix map
 -- The following 3 definitions are identical!
 
-fancyfunc1 = zipWith ($) (repeat (*3))
-fancyfunc2 :: [Int] -> [Int]
+fancyfunc1 l = fmap (*3) l
 fancyfunc2 l = pure (*3) <*> l
 fancyfunc3 l = (*3) <$> l
 
@@ -640,6 +648,41 @@ example8 = do
     let a = take 10 $ fancyfunc3 [1..]
     print a
 
+-- IO is also an applicative functor
+example9 = (++) <$> getLine <*> getLine
+
+--
+-- Lets look at how ((->) r) is Applicative
+    {-
+        instance Applicative ((->) r) where
+            -- id-like function
+            pure x = (\_ -> x)
+            f <*> g = \x -> f x (g x)
+    -}
+-- f <*> g takes a function (a->a->a) and a function (a->a) and makes
+-- it into a function of (a->a) it also has the effect of doubling
+-- the argument!
+example10 = (replicate) <$> (*3) <*> (*(-1))
+-- This function fmaps replicate over (*3) to get a function
+-- that replicates 3x as many as you want. Then when we use
+-- <*> (*(-1)) distributes the argument.
+
+-- This function calls + on the eventual results of (+3) and (*100).
+-- Rather than simply composinge the (+3) and (*100) that one might expect
+-- it first fmaps (+) over (+3) so you get an applicative functor.
+-- :t (+) <$> (+3)
+-- (+) <$> (+3) :: Num a => a -> a -> a
+-- :t (+) <$> (+3) <*> (*100)
+-- (+) <$> (+3) <*> (*100) :: Num b => b -> b
+-- Why does it not take 2 arguments?
+simpleAppFunc = (+) <$> (+3) <*> (*100)
+
+-- This function will call `(\x y z -> x:y:z:[])` with the eventual
+-- results of (+3) (*2) and (/2)
+crazyAppFunc = (\x y z -> [x,y,z]) <$> (+3) <*> (*2) <*> (/2)
+
+-- ((->) r) IS AN APPLICATIVE FUNCTOR THAT ACTS LIKE DISTRIBUTING AN ARGUMENT
+
 -- ZipLists are a typeclass that is an instance of applicative. (This implies
 -- it's also a functor). When used with the <*> operator, they behave like
 -- zipWith ($)
@@ -649,16 +692,36 @@ example8 = do
 -- the spot rather than having to prepare them separately.
 -- getZipList $ (+) <$> ZipList [1,2,3] <*> ZipList [100,100,100]
 --
+-- (,) is a function that takes 2 arguments and makes a tuple out of them
+--
 -- liftA2 has the type:
 -- (a->b->c)->(f a -> f b -> f c)
 --
 -- It takes a normal binary function and promotes it to a function that
 -- operates on two functors
+-- liftA2 (,) (Just 3) (Just 4)
+-- Just (3,4)
 --
--- MONOIDS
+-- Sequence is a function that takes a list of applicatives and
+-- returns an applicative with a list.
 --
--- an associative binary function and a value which acts as an identity w.r.t.
--- that function.
+-- sequence [Just 1, Just 2, Just 3, Just 4]
+-- Just [1,2,3,4]
+--
+-- Why does
+-- :t sequence [(*3), (*5), (*10)]
+-- sequence [(*3), (*5), (*10)] :: Num a => a -> [a]
+-- In this case the applicative is ((->) r) so it does
+-- the whole (:) <$> x <*> sequence xs
+--
+-- The actual implementation is `mapM id`
+--
+-- =========================== MONOIDS ========================================
+--
+-- VERY IMPORTANT: Monoids are sort of like socks.
+--
+-- an associative binary function for which there exists a value which acts as
+-- an identity w.r.t. that function.
 --
 -- Monoids are useful because they allow you to define how to do things like
 -- folding/collecting on a type.
